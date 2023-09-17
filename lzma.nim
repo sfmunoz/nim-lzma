@@ -254,38 +254,43 @@ proc compress*(inString: cstring, preset=LZMA_PRESET_DEFAULT, check=LZMA_CHECK_C
         else: raise newException(XZlibStreamError, "Unknown error(" & $ret & "), possibly a bug")
     result = @outString[0..outPos]
 
-proc decompress*(inString: openArray[byte]): cstring =
+proc decompress*(inString: openArray[byte]): seq[byte] =
+    # usage (example to get cstring):
+    #   let buf_xz = readFile(fname)
+    #   let buf = buf_xz.toOpenArrayByte(0,buf_xz.len-1).decompress
+    #   let s = cast[cstring](buf[0].addr)
     var
         memlimit = high(int64)
         inBuf = newSeq[byte](inString.len)
         flags = 0.int32
         inSize = inString.len
         outSize = inSize * 2
-        outString = newSeq[byte](outSize)
         inPos = 0
         outPos = 0
+    result = newSeq[byte](outSize)
     for i in 0..inString.len-1:
         inBuf[i] = inString[i]
     var
-        ret = lzma_stream_buffer_decode(memlimit.addr, flags, nil, cast[cstring](inBuf[0].addr), inPos.addr, inSize, cast[cstring](outString[0].addr), outPos.addr, outSize)
+        ret = lzma_stream_buffer_decode(memlimit.addr, flags, nil, cast[cstring](inBuf[0].addr), inPos.addr, inSize, cast[cstring](result[0].addr), outPos.addr, outSize)
     # If the compression ratio is really good, we may need to double the outbuf again
     while ret == LZMA_BUF_ERROR:
         outSize *= 2
-        outString = newSeq[byte](outSize)
-        ret = lzma_stream_buffer_decode(memlimit.addr, flags, nil, cast[cstring](inBuf[0].addr), inPos.addr, inSize, cast[cstring](outString[0].addr), outPos.addr, outSize)
+        result = newSeq[byte](outSize)
+        ret = lzma_stream_buffer_decode(memlimit.addr, flags, nil, cast[cstring](inBuf[0].addr), inPos.addr, inSize, cast[cstring](result[0].addr), outPos.addr, outSize)
     case ret:
         of LZMA_OK: discard
         of LZMA_FORMAT_ERROR: raise newException(XZlibStreamError, "The input is not in the .xz format")
         of LZMA_OPTIONS_ERROR: raise newException(XZlibStreamError, "Unsupported decompression options")
-        of LZMA_DATA_ERROR: raise newException(XZlibStreamError, "Compressed string is corrupt")        
+        of LZMA_DATA_ERROR: raise newException(XZlibStreamError, "Compressed string is corrupt")
         of LZMA_MEM_ERROR: raise newException(XZlibStreamError, "Memory allocation failed")
         of LZMA_MEMLIMIT_ERROR: raise newException(XZlibStreamError, "Memory usage limit was reached")
         of LZMA_BUF_ERROR: raise newException(XZlibStreamError, "Not enough output buffer space")
         of LZMA_PROG_ERROR: raise newException(XZlibStreamError, "Invalid decompression parameters")
         else: raise newException(XZlibStreamError, "Unknown error(" & $ret & "), possibly a bug")
-    result = cast[cstring](outString[0].addr)
+    result.setLen(outPos)
 
 when isMainModule:
     let s = cstring("The quick brown fox jumps over the lazy dog")
-    echo(s.compress.decompress)
+    let s2 = s.compress.decompress
+    echo cast[cstring](s2[0].addr)
 
