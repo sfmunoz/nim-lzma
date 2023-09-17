@@ -5,7 +5,7 @@ when defined(windows):
 elif defined(macosx):
     const liblzma = "liblzma.dylib"
 else:
-    const liblzma = "liblzma.so"
+    const liblzma = "liblzma.so.5"
 
 import os
 
