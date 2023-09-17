@@ -264,14 +264,13 @@ proc decompress*(inString: openArray[byte]): seq[byte] =
         inBuf = newSeq[byte](inString.len)
         flags = 0.int32
         inSize = inString.len
-        outSize = inSize * 2
+        outSize = inSize
         inPos = 0
         outPos = 0
-    result = newSeq[byte](outSize)
     for i in 0..inString.len-1:
         inBuf[i] = inString[i]
     var
-        ret = lzma_stream_buffer_decode(memlimit.addr, flags, nil, cast[cstring](inBuf[0].addr), inPos.addr, inSize, cast[cstring](result[0].addr), outPos.addr, outSize)
+        ret = LZMA_BUF_ERROR  # enforces first loop execution (kind of ugly but the code is not repeated)
     # If the compression ratio is really good, we may need to double the outbuf again
     while ret == LZMA_BUF_ERROR:
         outSize *= 2
@@ -284,7 +283,7 @@ proc decompress*(inString: openArray[byte]): seq[byte] =
         of LZMA_DATA_ERROR: raise newException(XZlibStreamError, "Compressed string is corrupt")
         of LZMA_MEM_ERROR: raise newException(XZlibStreamError, "Memory allocation failed")
         of LZMA_MEMLIMIT_ERROR: raise newException(XZlibStreamError, "Memory usage limit was reached")
-        of LZMA_BUF_ERROR: raise newException(XZlibStreamError, "Not enough output buffer space")
+        of LZMA_BUF_ERROR: raise newException(XZlibStreamError, "Not enough output buffer space")  # never reached
         of LZMA_PROG_ERROR: raise newException(XZlibStreamError, "Invalid decompression parameters")
         else: raise newException(XZlibStreamError, "Unknown error(" & $ret & "), possibly a bug")
     result.setLen(outPos)
